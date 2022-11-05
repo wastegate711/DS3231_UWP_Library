@@ -5,13 +5,13 @@ using System.Runtime.InteropServices;
 // Общие сведения об этой сборке предоставляются следующим набором 
 // набора атрибутов. Измените значения этих атрибутов, чтобы изменить сведения,
 // связанные со сборкой.
-[assembly: AssemblyTitle("DS3231")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("West.RTC.DS3231")]
+[assembly: AssemblyDescription("Библиотека для работы с микросхемой часов.")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("West")]
 [assembly: AssemblyProduct("DS3231")]
-[assembly: AssemblyCopyright("Copyright ©  2022")]
-[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCopyright("West")]
+[assembly: AssemblyTrademark("West")]
 [assembly: AssemblyCulture("")]
 
 // Сведения о версии для сборки состоят из следующих четырех значений:

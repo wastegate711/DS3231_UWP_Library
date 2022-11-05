@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package >
+  <metadata>
+    <id>West.RTC.DS3231</id>
+    <version>1.0.0</version>
+    <title>DS3231</title>
+    <authors>West</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">MIT</license>
+    <projectUrl>https://github.com/wastegate711/DS3231_UWP_Library</projectUrl>
+    <iconUrl>http://icon_url_here_or_delete_this_line/</iconUrl>
+    <description>Библиотека для работы с микросхемой часов.</description>
+    <releaseNotes>First release.</releaseNotes>
+    <copyright>West 2022</copyright>
+    <tags>RTC UWP Raspberry</tags>
+  </metadata>
+</package>
