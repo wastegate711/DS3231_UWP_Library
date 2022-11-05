@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>West.RTC.DS3231</id>
-    <version>1.0.0</version>
+    <version>1.0.4</version>
     <title>DS3231</title>
     <authors>West</authors>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
@@ -14,5 +14,22 @@
     <releaseNotes>First release.</releaseNotes>
     <copyright>West 2022</copyright>
     <tags>RTC UWP Raspberry</tags>
+    <dependencies>
+      <dependency id="Microsoft.NETCore.UniversalWindowsPlatform" version="5.0" />
+    </dependencies>
   </metadata>
+  <files>
+    <file src="..\Release\Images\west-logos_white.png" target="Images"/>
+    <file src="..\ARM\Release\DS3231.dll" target="runtimes\win10-arm\lib\uap10.0"/>
+    <file src="..\ARM\Release\DS3231.pdb" target="runtimes\win10-arm\lib\uap10.0"/>
+
+    <file src="..\ARM64\Release\DS3231.dll" target="runtimes\win10-arm64\lib"/>
+    <file src="..\ARM64\Release\DS3231.pdb" target="runtimes\win10-arm64\lib"/>
+
+    <file src="..\x64\Release\DS3231.dll" target="runtimes\win10-x64\lib"/>
+    <file src="..\x64\Release\DS3231.pdb" target="runtimes\win10-x64\lib"/>
+
+    <file src="..\x86\Release\DS3231.dll" target="runtimes\win10-x86\lib"/>
+    <file src="..\x86\Release\DS3231.pdb" target="runtimes\win10-x86\lib"/>
+  </files>
 </package>

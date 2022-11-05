@@ -135,11 +135,15 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Ds3231.nuspec" />
+    <None Include="Ds3231.nuspec">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <Content Include="Images\west-logos_white.png" />
+    <None Include="Images\west-logos_white.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>
