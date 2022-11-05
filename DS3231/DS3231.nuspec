@@ -8,8 +8,9 @@
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <license type="expression">MIT</license>
     <projectUrl>https://github.com/wastegate711/DS3231_UWP_Library</projectUrl>
-    <iconUrl>http://icon_url_here_or_delete_this_line/</iconUrl>
-    <description>Библиотека для работы с микросхемой часов.</description>
+    <icon>Images\west-logos_white.png</icon>
+    <description>Библиотека для работы с микросхемой часов. Для использования создать экземпляр класса Ds3231,
+    для использования в контейере зарегестрировать класс Ds3231 и интерфейс IDs3231.</description>
     <releaseNotes>First release.</releaseNotes>
     <copyright>West 2022</copyright>
     <tags>RTC UWP Raspberry</tags>
