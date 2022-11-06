@@ -93,7 +93,7 @@ namespace DS3231
 
             _ds3231.WriteRead(txData, rxData);
 
-            switch (rxData[3])
+            switch (rxData[0])
             {
                 case 1:
                     weekDay = "Понедельник";
