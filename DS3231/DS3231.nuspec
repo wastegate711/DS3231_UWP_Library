@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>West.RTC.DS3231</id>
-    <version>1.0.10</version>
+    <version>1.0.11</version>
     <title>DS3231</title>
     <authors>West</authors>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
@@ -25,15 +25,5 @@
     <file src="..\Debug\Microsoft.UI.Xaml.Markup.winmd" target="lib\uap10.0"/>
     <file src="..\Debug\DS3231.xml" target="lib\uap10.0"/>
     <file src="..\ARM\Release\DS3231.dll" target="lib\uap10.0"/>
-    <file src="..\ARM\Release\DS3231.pri" target="lib\uap10.0"/>
-
-    <file src="..\ARM64\Release\DS3231.dll" target="lib\arm64"/>
-    <file src="..\ARM64\Release\DS3231.pri" target="lib\arm64"/>
-
-    <file src="..\x64\Release\DS3231.dll" target="lib\x64"/>
-    <file src="..\x64\Release\DS3231.pri" target="lib\x64"/>
-
-    <file src="..\x86\Release\DS3231.dll" target="lib\x86"/>
-    <file src="..\x86\Release\DS3231.pri" target="lib\x86"/>
   </files>
 </package>
