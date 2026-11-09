@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Windows.Devices.I2c;
 
 namespace DS3231
@@ -13,12 +14,27 @@ namespace DS3231
         void Initialization(int address, I2cBusSpeed busSpeed);
 
         /// <summary>
+        /// Асинхронно подключается к I2C контроллеру по умолчанию.
+        /// </summary>
+        /// <param name="address">Адрес устройства.</param>
+        /// <param name="busSpeed">Скорость шины.</param>
+        Task InitializeAsync(int address, I2cBusSpeed busSpeed);
+
+        /// <summary>
         /// Получает I2C контроллер.
         /// </summary>
         /// <param name="interfaceName">Имя контроллера (пример "i2c1" или "i2c2")</param>
         /// <param name="address">Адрес устройства.</param>
         /// <param name="busSpeed">Скорость.</param>
         void Initialization(string interfaceName, int address, I2cBusSpeed busSpeed);
+
+        /// <summary>
+        /// Асинхронно подключается к указанному I2C контроллеру.
+        /// </summary>
+        /// <param name="interfaceName">Имя контроллера (пример "i2c1" или "i2c2").</param>
+        /// <param name="address">Адрес устройства.</param>
+        /// <param name="busSpeed">Скорость шины.</param>
+        Task InitializeAsync(string interfaceName, int address, I2cBusSpeed busSpeed);
 
         /// <summary>
         /// Считывает данные датчика температуры.

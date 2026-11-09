@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
 
@@ -13,6 +14,12 @@ namespace DS3231
         /// <inheritdoc />
         public async void Initialization(int address, I2cBusSpeed busSpeed)
         {
+            await InitializeAsync(address, busSpeed);
+        }
+
+        /// <inheritdoc />
+        public async Task InitializeAsync(int address, I2cBusSpeed busSpeed)
+        {
             var connectSetting = new I2cConnectionSettings(address);
             connectSetting.BusSpeed = busSpeed;
             var controller = await I2cController.GetDefaultAsync();
@@ -24,6 +31,12 @@ namespace DS3231
 
         /// <inheritdoc />
         public async void Initialization(string interfaceName, int address, I2cBusSpeed busSpeed)
+        {
+            await InitializeAsync(interfaceName, address, busSpeed);
+        }
+
+        /// <inheritdoc />
+        public async Task InitializeAsync(string interfaceName, int address, I2cBusSpeed busSpeed)
         {
             var list = I2cDevice.GetDeviceSelector(interfaceName);
             var connectSetting = new I2cConnectionSettings(address);

@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Pack NuGet package
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          dotnet pack DS3231/DS3231.csproj --configuration Release --output artifacts "-p:PackageVersion=$version"
+
+      - name: Attach package to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.nupkg
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get temporary NuGet API key (OIDC)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish package to NuGet.org
+        shell: bash
+        run: dotnet nuget push artifacts/*.nupkg --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
