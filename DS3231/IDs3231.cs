@@ -1,87 +1,62 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Windows.Devices.I2c;
 
 namespace DS3231
 {
     public interface IDs3231
     {
         /// <summary>
-        /// Получает I2C контроллер по умолчанию (в Raspberry pi 2 и 3 это I2С1)
+        /// Открывает DS3231 на указанной шине I2C по заданному адресу устройства.
         /// </summary>
-        /// <param name="address">Адрес устройства.</param>
-        /// <param name="busSpeed">Скорость.</param>
-        void Initialization(int address, I2cBusSpeed busSpeed);
+        /// <param name="busId">Идентификатор шины I2C, зависящий от платформы.</param>
+        /// <param name="address">7-битный адрес устройства I2C.</param>
+        void Initialization(int busId, int address);
 
         /// <summary>
-        /// Асинхронно подключается к I2C контроллеру по умолчанию.
+        /// Открывает DS3231 на указанной шине I2C по заданному адресу устройства.
         /// </summary>
-        /// <param name="address">Адрес устройства.</param>
-        /// <param name="busSpeed">Скорость шины.</param>
-        Task InitializeAsync(int address, I2cBusSpeed busSpeed);
+        /// <param name="busId">Идентификатор шины I2C, зависящий от платформы.</param>
+        /// <param name="address">7-битный адрес устройства I2C.</param>
+        Task InitializeAsync(int busId, int address);
 
         /// <summary>
-        /// Получает I2C контроллер.
+        /// Считывает температуру DS3231 в градусах Цельсия.
         /// </summary>
-        /// <param name="interfaceName">Имя контроллера (пример "i2c1" или "i2c2")</param>
-        /// <param name="address">Адрес устройства.</param>
-        /// <param name="busSpeed">Скорость.</param>
-        void Initialization(string interfaceName, int address, I2cBusSpeed busSpeed);
-
-        /// <summary>
-        /// Асинхронно подключается к указанному I2C контроллеру.
-        /// </summary>
-        /// <param name="interfaceName">Имя контроллера (пример "i2c1" или "i2c2").</param>
-        /// <param name="address">Адрес устройства.</param>
-        /// <param name="busSpeed">Скорость шины.</param>
-        Task InitializeAsync(string interfaceName, int address, I2cBusSpeed busSpeed);
-
-        /// <summary>
-        /// Считывает данные датчика температуры.
-        /// </summary>
-        /// <returns></returns>
         float GetTemperature();
 
         /// <summary>
-        /// Закрывает соединение и закрывает дескриптор.
+        /// Освобождает ресурсы устройства I2C.
         /// </summary>
         void Close();
 
         /// <summary>
-        /// Получает идентификатор устройства.
+        /// Возвращает номер шины I2C и адрес открытого устройства.
         /// </summary>
-        /// <returns>Вернет строку содержащую имя контроллера и его guid.</returns>
         string GetDeviceId();
 
         /// <summary>
-        /// Устанавливает текущую на компьютере дату и время в микросхеме RTC.
+        /// Устанавливает в часах системные местные дату и время.
         /// </summary>
-        /// <returns>Вернет результат выполненой операции.</returns>
-        I2cTransferResult SetDateTime();
+        void SetDateTime();
 
         /// <summary>
-        /// Устанавливает дату и время в микросхеме RTC.
+        /// Устанавливает дату и время в формате dd.MM.yyyy HH:mm:ss.
         /// </summary>
-        /// <param name="newDateTime">Дата и время в формате dd.mm.yyyy hh:mm:ss</param>
-        /// <returns>Вернет результат выполненой операции.</returns>
-        I2cTransferResult SetDateTime(string newDateTime);
+        void SetDateTime(string newDateTime);
 
         /// <summary>
-        /// Устанавливает дату и время в микросхеме RTC.
+        /// Устанавливает в часах указанную дату и время.
         /// </summary>
-        /// <returns>Вернет результат выполненой операции.</returns>
-        I2cTransferResult SetDateTime(DateTime dateTime);
+        void SetDateTime(DateTime dateTime);
 
         /// <summary>
-        /// Считывает из микросхемы RTC показания.
+        /// Считывает дату и время из часов реального времени.
         /// </summary>
-        /// <returns>Вернет дату и время в формате DateTime.</returns>
         DateTime GetDateTime();
 
         /// <summary>
-        /// Считывает день недели.
+        /// Считывает установленный в часах день недели.
         /// </summary>
-        /// <returns>Вернет день недели в формате (Вторник, Среда)</returns>
         string GetWeekDay();
     }
 }

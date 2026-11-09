@@ -1,16 +1,16 @@
 # West.RTC.DS3231
 
-Библиотека для работы с часами реального времени DS3231 по шине I²C. Проект собирается как `netstandard2.0`; фактическая работа с `Windows.Devices.I2c` требует Windows-приложения/устройства и доступной I²C-шины. Сам по себе `netstandard2.0` не делает I²C API кроссплатформенным.
+Библиотека для работы с часами реального времени DS3231 по шине I²C. Проект собирается как `netstandard2.0` и использует `System.Device.I2c`; доступность I²C зависит от платформы и драйвера, поддерживаемого `System.Device.Gpio`.
 
 ## Установка
 
-Установите NuGet-пакет `West.RTC.DS3231` в приложение, работающее на Windows и поддерживающее WinRT I²C API:
+Установите NuGet-пакет `West.RTC.DS3231` в .NET-приложение на платформе с поддержкой `System.Device.I2c`:
 
 ```powershell
 dotnet add package West.RTC.DS3231
 ```
 
-Пакет использует Windows SDK Contracts для ссылок на `Windows.Devices.I2c`. Подключите устройство DS3231 к I²C и убедитесь, что приложение/устройство настроено на доступ к соответствующей шине. Стандартный 7-битный адрес DS3231 — `0x68`.
+Пакет использует `System.Device.Gpio`. Подключите устройство DS3231 к I²C и убедитесь, что ОС предоставляет драйвер для выбранной шины. Стандартный 7-битный адрес DS3231 — `0x68`.
 
 ## Быстрый старт
 
@@ -18,10 +18,9 @@ dotnet add package West.RTC.DS3231
 
 ```csharp
 using DS3231;
-using Windows.Devices.I2c;
 
 var rtc = new Ds3231();
-await rtc.InitializeAsync(0x68, I2cBusSpeed.StandardMode);
+await rtc.InitializeAsync(busId: 1, address: 0x68);
 
 try
 {
@@ -29,7 +28,7 @@ try
     string weekday = rtc.GetWeekDay();
     float temperatureCelsius = rtc.GetTemperature();
 
-    var result = rtc.SetDateTime(new DateTime(2026, 11, 9, 12, 30, 0));
+    rtc.SetDateTime(new DateTime(2026, 11, 9, 12, 30, 0));
 }
 finally
 {
@@ -37,13 +36,7 @@ finally
 }
 ```
 
-Если контроллер нужно выбрать по имени, например `i2c1`, используйте перегрузку:
-
-```csharp
-await rtc.InitializeAsync("i2c1", 0x68, I2cBusSpeed.StandardMode);
-```
-
-В приложении вызовы `await` должны находиться внутри `async`-метода. Выберите `I2cBusSpeed.FastMode`, если устройство, контроллер и проводка поддерживают Fast-mode.
+`busId` — системный идентификатор I²C-шины; его значение зависит от ОС и драйвера. Вызов `await` должен находиться внутри `async`-метода. Открытие устройства выполняется синхронно underlying API, хотя `InitializeAsync` оставлен для удобства асинхронной инициализации в приложении.
 
 ## Класс `Ds3231` и интерфейс `IDs3231`
 
@@ -51,27 +44,25 @@ await rtc.InitializeAsync("i2c1", 0x68, I2cBusSpeed.StandardMode);
 
 ### Инициализация и подключение
 
-- `Task InitializeAsync(int address, I2cBusSpeed busSpeed)` — асинхронно получает контроллер по умолчанию и открывает устройство с указанным I²C-адресом и скоростью.
-- `Task InitializeAsync(string interfaceName, int address, I2cBusSpeed busSpeed)` — находит контроллер по имени (например, `i2c1`) и открывает устройство.
-- `void Initialization(int address, I2cBusSpeed busSpeed)` — прежний совместимый метод инициализации по умолчанию. Он запускает асинхронное подключение, но не позволяет дождаться его завершения; в новом коде используйте `InitializeAsync`.
-- `void Initialization(string interfaceName, int address, I2cBusSpeed busSpeed)` — прежний совместимый вариант с выбором контроллера по имени. Также предпочтителен `InitializeAsync`.
+- `void Initialization(int busId, int address)` — открывает устройство на указанной I²C-шине.
+- `Task InitializeAsync(int busId, int address)` — запускает ту же инициализацию и возвращает завершенную задачу; API `System.Device.I2c` открывает устройство синхронно.
 
-Для всех остальных операций сначала дождитесь завершения `InitializeAsync`. Методы доступа к регистрам синхронные и используют уже открытое устройство.
+Перед вызовом остальных методов сначала инициализируйте устройство.
 
 ### Чтение
 
 - `DateTime GetDateTime()` — читает секунды, минуты, часы, дату, месяц и год DS3231 и возвращает `DateTime`.
 - `string GetWeekDay()` — читает регистр дня недели. Возвращаемые значения: `Понедельник`, `Вторник`, `Среда`, `Четверг`, `Пятница`, `Суббота`, `Воскресенье`; при неизвестном значении возвращается `Ошибка.`.
 - `float GetTemperature()` — читает температурные регистры и возвращает значение в градусах Цельсия с шагом 0,25 °C.
-- `string GetDeviceId()` — возвращает системный идентификатор открытого I²C-устройства.
+- `string GetDeviceId()` — возвращает идентификатор в виде номера I²C-шины и адреса устройства.
 
 ### Установка даты и времени
 
-- `I2cTransferResult SetDateTime()` — записывает системные локальные дату и время (`DateTime.Now`) в DS3231.
-- `I2cTransferResult SetDateTime(DateTime dateTime)` — записывает явно переданные дату и время. Значение записывается как компоненты часов без преобразования часового пояса; передайте корректное локальное время для своего сценария.
-- `I2cTransferResult SetDateTime(string newDateTime)` — разбирает строку через `DateTime.Parse` с текущей культурой среды и затем записывает время. Для предсказуемого формата и обработки ошибок предпочтительнее перегрузка с `DateTime`.
+- `void SetDateTime()` — записывает системные локальные дату и время (`DateTime.Now`) в DS3231.
+- `void SetDateTime(DateTime dateTime)` — записывает явно переданные дату и время без преобразования часового пояса. Поддерживаются годы с 2000 по 2199.
+- `void SetDateTime(string newDateTime)` — разбирает дату в точном формате `dd.MM.yyyy HH:mm:ss`; неверный формат приводит к `FormatException`.
 
-Перегрузки `SetDateTime` возвращают `I2cTransferResult` из Windows I²C API. Проверяйте `Status` и `BytesTransferred`, чтобы убедиться в результате операции.
+Ошибки шины передаются вызывающему коду исключениями `System.Device.I2c`; при успешной записи методы завершаются без результата.
 
 ### Закрытие
 
