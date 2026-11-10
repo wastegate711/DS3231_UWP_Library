@@ -58,5 +58,65 @@ namespace DS3231
         /// Считывает установленный в часах день недели.
         /// </summary>
         string GetWeekDay();
+
+        /// <summary>
+        /// Настраивает будильник 1 на ежедневное срабатывание в указанное время, включая секунды.
+        /// </summary>
+        void SetAlarm1Daily(TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 1 на еженедельное срабатывание в указанный день и время.
+        /// </summary>
+        void SetAlarm1Weekly(DayOfWeek dayOfWeek, TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 1 на ежемесячное срабатывание в указанный день и время.
+        /// </summary>
+        void SetAlarm1DayOfMonth(int day, TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 2 на ежедневное срабатывание в указанное время с точностью до минуты.
+        /// </summary>
+        void SetAlarm2Daily(TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 2 на еженедельное срабатывание в указанный день и время.
+        /// </summary>
+        void SetAlarm2Weekly(DayOfWeek dayOfWeek, TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 2 на ежемесячное срабатывание в указанный день и время.
+        /// </summary>
+        void SetAlarm2DayOfMonth(int day, TimeSpan time);
+
+        /// <summary>
+        /// Возвращает true, если установлен флаг срабатывания будильника 1.
+        /// </summary>
+        bool IsAlarm1Triggered();
+
+        /// <summary>
+        /// Возвращает true, если установлен флаг срабатывания будильника 2.
+        /// </summary>
+        bool IsAlarm2Triggered();
+
+        /// <summary>
+        /// Сбрасывает флаг срабатывания будильника 1.
+        /// </summary>
+        void ClearAlarm1Flag();
+
+        /// <summary>
+        /// Сбрасывает флаг срабатывания будильника 2.
+        /// </summary>
+        void ClearAlarm2Flag();
+
+        /// <summary>
+        /// Отключает прерывание от будильника 1 и сбрасывает его флаг срабатывания.
+        /// </summary>
+        void DisableAlarm1();
+
+        /// <summary>
+        /// Отключает прерывание от будильника 2 и сбрасывает его флаг срабатывания.
+        /// </summary>
+        void DisableAlarm2();
     }
 }
