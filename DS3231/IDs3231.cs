@@ -1,71 +1,122 @@
 ﻿using System;
-using Windows.Devices.I2c;
+using System.Threading.Tasks;
 
 namespace DS3231
 {
     public interface IDs3231
     {
         /// <summary>
-        /// Получает I2C контроллер по умолчанию (в Raspberry pi 2 и 3 это I2С1)
+        /// Открывает DS3231 на указанной шине I2C по заданному адресу устройства.
         /// </summary>
-        /// <param name="address">Адрес устройства.</param>
-        /// <param name="busSpeed">Скорость.</param>
-        void Initialization(int address, I2cBusSpeed busSpeed);
+        /// <param name="busId">Идентификатор шины I2C, зависящий от платформы.</param>
+        /// <param name="address">7-битный адрес устройства I2C.</param>
+        void Initialization(int busId, int address);
 
         /// <summary>
-        /// Получает I2C контроллер.
+        /// Открывает DS3231 на указанной шине I2C по заданному адресу устройства.
         /// </summary>
-        /// <param name="interfaceName">Имя контроллера (пример "i2c1" или "i2c2")</param>
-        /// <param name="address">Адрес устройства.</param>
-        /// <param name="busSpeed">Скорость.</param>
-        void Initialization(string interfaceName, int address, I2cBusSpeed busSpeed);
+        /// <param name="busId">Идентификатор шины I2C, зависящий от платформы.</param>
+        /// <param name="address">7-битный адрес устройства I2C.</param>
+        Task InitializeAsync(int busId, int address);
 
         /// <summary>
-        /// Считывает данные датчика температуры.
+        /// Считывает температуру DS3231 в градусах Цельсия.
         /// </summary>
-        /// <returns></returns>
         float GetTemperature();
 
         /// <summary>
-        /// Закрывает соединение и закрывает дескриптор.
+        /// Освобождает ресурсы устройства I2C.
         /// </summary>
         void Close();
 
         /// <summary>
-        /// Получает идентификатор устройства.
+        /// Возвращает номер шины I2C и адрес открытого устройства.
         /// </summary>
-        /// <returns>Вернет строку содержащую имя контроллера и его guid.</returns>
         string GetDeviceId();
 
         /// <summary>
-        /// Устанавливает текущую на компьютере дату и время в микросхеме RTC.
+        /// Устанавливает в часах системные местные дату и время.
         /// </summary>
-        /// <returns>Вернет результат выполненой операции.</returns>
-        I2cTransferResult SetDateTime();
+        void SetDateTime();
 
         /// <summary>
-        /// Устанавливает дату и время в микросхеме RTC.
+        /// Устанавливает дату и время в формате dd.MM.yyyy HH:mm:ss.
         /// </summary>
-        /// <param name="newDateTime">Дата и время в формате dd.mm.yyyy hh:mm:ss</param>
-        /// <returns>Вернет результат выполненой операции.</returns>
-        I2cTransferResult SetDateTime(string newDateTime);
+        void SetDateTime(string newDateTime);
 
         /// <summary>
-        /// Устанавливает дату и время в микросхеме RTC.
+        /// Устанавливает в часах указанную дату и время.
         /// </summary>
-        /// <returns>Вернет результат выполненой операции.</returns>
-        I2cTransferResult SetDateTime(DateTime dateTime);
+        void SetDateTime(DateTime dateTime);
 
         /// <summary>
-        /// Считывает из микросхемы RTC показания.
+        /// Считывает дату и время из часов реального времени.
         /// </summary>
-        /// <returns>Вернет дату и время в формате DateTime.</returns>
         DateTime GetDateTime();
 
         /// <summary>
-        /// Считывает день недели.
+        /// Считывает установленный в часах день недели.
         /// </summary>
-        /// <returns>Вернет день недели в формате (Вторник, Среда)</returns>
         string GetWeekDay();
+
+        /// <summary>
+        /// Настраивает будильник 1 на ежедневное срабатывание в указанное время, включая секунды.
+        /// </summary>
+        void SetAlarm1Daily(TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 1 на еженедельное срабатывание в указанный день и время.
+        /// </summary>
+        void SetAlarm1Weekly(DayOfWeek dayOfWeek, TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 1 на ежемесячное срабатывание в указанный день и время.
+        /// </summary>
+        void SetAlarm1DayOfMonth(int day, TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 2 на ежедневное срабатывание в указанное время с точностью до минуты.
+        /// </summary>
+        void SetAlarm2Daily(TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 2 на еженедельное срабатывание в указанный день и время.
+        /// </summary>
+        void SetAlarm2Weekly(DayOfWeek dayOfWeek, TimeSpan time);
+
+        /// <summary>
+        /// Настраивает будильник 2 на ежемесячное срабатывание в указанный день и время.
+        /// </summary>
+        void SetAlarm2DayOfMonth(int day, TimeSpan time);
+
+        /// <summary>
+        /// Возвращает true, если установлен флаг срабатывания будильника 1.
+        /// </summary>
+        bool IsAlarm1Triggered();
+
+        /// <summary>
+        /// Возвращает true, если установлен флаг срабатывания будильника 2.
+        /// </summary>
+        bool IsAlarm2Triggered();
+
+        /// <summary>
+        /// Сбрасывает флаг срабатывания будильника 1.
+        /// </summary>
+        void ClearAlarm1Flag();
+
+        /// <summary>
+        /// Сбрасывает флаг срабатывания будильника 2.
+        /// </summary>
+        void ClearAlarm2Flag();
+
+        /// <summary>
+        /// Отключает прерывание от будильника 1 и сбрасывает его флаг срабатывания.
+        /// </summary>
+        void DisableAlarm1();
+
+        /// <summary>
+        /// Отключает прерывание от будильника 2 и сбрасывает его флаг срабатывания.
+        /// </summary>
+        void DisableAlarm2();
     }
 }
