@@ -133,7 +133,7 @@ dotnet pack DS3231/DS3231.csproj --configuration Release --output artifacts
 
 Если вы хотите внести свои изменения, создайте ветку `feature/name`, затем создайте Pull Request в ветку `dev`.
 
-- `dev` — основная ветка разработки. Каждый push собирает и публикует в NuGet.org prerelease-пакет вида `1.0.12-dev.<номер запуска GitHub Actions>`.
+- `dev` — основная ветка разработки. Каждый push собирает prerelease-пакет вида `1.0.12-dev.<номер запуска GitHub Actions>`, создает GitHub Pre-release с соответствующим тегом `v...` и прикрепляет `.nupkg`; пакет также публикуется в NuGet.org.
 - `release` — ветка стабильных релизов. Перед публикацией увеличьте `<Version>` в `DS3231/DS3231.csproj`, чтобы версия и тег были уникальными. Каждый push собирает стабильный пакет, создает GitHub Release с тегом `v<версия из проекта>`, прикрепляет к нему `.nupkg` и публикует стабильную версию в NuGet.org.
 
 Для публикации используется настроенный NuGet Trusted Publishing.
