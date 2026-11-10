@@ -5,14 +5,36 @@ on:
     branches:
       - dev
       - release
+  pull_request:
+    branches:
+      - dev
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
-  publish:
+  build:
+    name: Build
     runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build project
+        run: dotnet build DS3231/DS3231.csproj --configuration Release
+
+  publish:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Check out source
         uses: actions/checkout@v4
