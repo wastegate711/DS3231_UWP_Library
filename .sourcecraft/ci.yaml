@@ -16,10 +16,9 @@ workflows:
 tasks:
   - name: build-and-publish
     cubes:
-      - name: build-and-publish-github-release
+      - name: build-and-publish-sourcecraft-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: wastegate711/DS3231_UWP_Library
+          SOURCECRAFT_TOKEN: ${{ secrets.SOURCECRAFT_TOKEN }}
         image:
           name: mcr.microsoft.com/dotnet/sdk:10.0
           entrypoint: ""
@@ -28,7 +27,14 @@ tasks:
             set -euo pipefail
 
             branch="${SOURCECRAFT_COMMIT_REF_NAME:?SourceCraft branch name is missing}"
-            commit_sha="${SOURCECRAFT_COMMIT_SHA:?SourceCraft commit SHA is missing}"
+            repo_url="${SOURCECRAFT_REPO_URL:?SourceCraft repository URL is missing}"
+            repo_path="$(printf '%s' "$repo_url" | sed -E 's#^.*git\.sourcecraft\.dev[:/]##; s#\.git$##')"
+            if [[ ! "$repo_path" =~ ^[^/]+/[^/]+$ ]]; then
+              echo "Cannot determine SourceCraft organization/repository from: $repo_url" >&2
+              exit 1
+            fi
+            org_slug="${repo_path%%/*}"
+            repo_slug="${repo_path#*/}"
 
             case "$branch" in
               dev)
@@ -50,7 +56,8 @@ tasks:
             fi
 
             if [[ "$prerelease" == true ]]; then
-              package_version="${base_version}-dev.$(date -u +%Y%m%d%H%M%S)"
+              commit_suffix="${SOURCECRAFT_COMMIT_SHA:?SourceCraft commit SHA is missing}"
+              package_version="${base_version}-dev.$(date -u +%Y%m%d%H%M%S).${commit_suffix:0:8}"
             else
               package_version="$base_version"
             fi
@@ -69,52 +76,65 @@ tasks:
               exit 1
             fi
 
-            api_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases"
-            api_headers=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
+            api_url="https://api.sourcecraft.tech/repos/${org_slug}/${repo_slug}/releases"
+            api_headers=(-H "Authorization: Bearer ${SOURCECRAFT_TOKEN}")
             response_file="$(mktemp)"
-            status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' "${api_url}/tags/${release_tag}" "${api_headers[@]}")"
+            status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' "${api_url}/tag/${release_tag}" "${api_headers[@]}")"
             case "$status" in
               404)
                 ;;
               200)
-                echo "GitHub Release ${release_tag} already exists; refusing to overwrite it." >&2
+                echo "SourceCraft Release ${release_tag} already exists; refusing to overwrite it." >&2
                 exit 1
                 ;;
               *)
                 cat "$response_file" >&2
-                echo "Failed to check GitHub Release (HTTP ${status})." >&2
+                echo "Failed to check SourceCraft Release (HTTP ${status})." >&2
                 exit 1
                 ;;
             esac
 
-            release_payload="$(jq -n \
-              --arg tag "$release_tag" \
-              --arg target "$commit_sha" \
-              --arg name "$release_tag" \
-              --arg body "${package_version} built from the ${branch} branch by SourceCraft." \
-              --argjson prerelease "$prerelease" \
-              '{tag_name: $tag, target_commitish: $target, name: $name, body: $body, draft: true, prerelease: $prerelease}')"
-            curl --fail-with-body --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+            tags_response="$(mktemp)"
+            curl --fail-with-body --silent --show-error --get "${api_url%/releases}/tags" \
+              "${api_headers[@]}" \
+              --data-urlencode "filter=${release_tag}" \
+              --data-urlencode "page_size=100" \
+              --output "$tags_response"
+            if jq -e --arg tag "$release_tag" '.tags[]? | select(.name == $tag)' "$tags_response" >/dev/null; then
+              release_payload="$(jq -n \
+                --arg tag "$release_tag" \
+                --arg title "$release_tag" \
+                --arg notes "${package_version} built from the ${branch} branch by SourceCraft." \
+                '{tag: $tag, title: $title, release_notes: $notes, publish: false}')"
+            else
+              release_payload="$(jq -n \
+                --arg tag "$release_tag" \
+                --arg branch "$branch" \
+                --arg title "$release_tag" \
+                --arg notes "${package_version} built from the ${branch} branch by SourceCraft." \
+                '{tag: $tag, target_branch: $branch, title: $title, release_notes: $notes, publish: false}')"
+            fi
+
+            curl --fail-with-body --silent --show-error \
               -X POST "${api_url}" "${api_headers[@]}" \
               -H "Content-Type: application/json" \
               --data "$release_payload" \
               --output "$response_file"
-            release_id="$(jq -er '.id' "$response_file")"
+            jq -e --arg tag "$release_tag" '.tag == $tag and .status == "draft"' "$response_file" >/dev/null
 
             upload_response="$(mktemp)"
-            curl --fail-with-body --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
-              -X POST "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?name=${package_name}" \
+            curl --fail-with-body --silent --show-error \
+              -X POST "${api_url}/tag/${release_tag}/attachments" \
               "${api_headers[@]}" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary "@${package_path}" \
+              -F "name=${package_name}" \
+              -F "file=@${package_path};type=application/octet-stream" \
               --output "$upload_response"
-            jq -e --arg name "$package_name" '.name == $name and .state == "uploaded"' "$upload_response" >/dev/null
+            jq -e --arg name "$package_name" '.name == $name' "$upload_response" >/dev/null
 
-            curl --fail-with-body --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
-              -X PATCH "${api_url}/${release_id}" "${api_headers[@]}" \
-              -H "Content-Type: application/json" \
-              --data '{"draft":false}' \
+            curl --fail-with-body --silent --show-error \
+              -X POST "${api_url}/tag/${release_tag}/publish" \
+              "${api_headers[@]}" \
               --output "$response_file"
-            jq -e --argjson prerelease "$prerelease" '.draft == false and .prerelease == $prerelease' "$response_file" >/dev/null
+            jq -e --argjson prerelease "$prerelease" '.status == "published" and .is_pre_release == $prerelease' "$response_file" >/dev/null
 
-            echo "Published GitHub $(if [[ "$prerelease" == true ]]; then echo 'Pre-release'; else echo 'Release'; fi) ${release_tag} with ${package_name}. No NuGet push is performed."
+            echo "Published SourceCraft $(if [[ "$prerelease" == true ]]; then echo 'Pre-release'; else echo 'Release'; fi) ${release_tag} with ${package_name}. No GitHub Release or NuGet push is performed."
