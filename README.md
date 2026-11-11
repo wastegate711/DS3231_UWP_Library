@@ -136,6 +136,6 @@ dotnet pack DS3231/DS3231.csproj --configuration Release --output artifacts
 - `dev` — основная ветка разработки. Каждый Pull Request и push проходят Release-сборку. GitHub Actions после успешной сборки push публикует prerelease-пакет вида `1.0.12-dev.<номер запуска GitHub Actions>` в GitHub Pre-release и NuGet.org.
 - `release` — ветка стабильных релизов. Перед публикацией увеличьте `<Version>` в `DS3231/DS3231.csproj`, чтобы версия и тег были уникальными. GitHub Actions после успешной сборки push создает стабильный GitHub Release с приложенным `.nupkg` и публикует стабильную версию в NuGet.org.
 
-В зеркале SourceCraft настроен отдельный pipeline `.sourcecraft/ci.yaml`: он также собирает и упаковывает библиотеку при push в `dev` или `release`, прикладывает пакет к соответствующему GitHub Pre-release/Release, но ничего не отправляет в NuGet.org. Для публикации из SourceCraft добавьте секрет `GITHUB_TOKEN` в настройках зеркального репозитория; подробности — в [`.sourcecraft/README.md`](.sourcecraft/README.md).
+В зеркале SourceCraft настроен отдельный pipeline `.sourcecraft/ci.yaml`: при push в `dev` или `release` он собирает и упаковывает библиотеку, затем публикует пакет в Releases самого зеркального репозитория SourceCraft. Этот pipeline не меняет GitHub Releases workflow и ничего не отправляет в NuGet.org. Для публикации добавьте секрет `SOURCECRAFT_TOKEN` в настройках зеркального репозитория; подробности — в [`.sourcecraft/README.md`](.sourcecraft/README.md).
 
 Для публикации из GitHub Actions используется настроенный NuGet Trusted Publishing.
