@@ -1,0 +1,120 @@
+on:
+  push:
+    - workflows: [publish-development-release]
+      filter:
+        branches: [dev]
+    - workflows: [publish-stable-release]
+      filter:
+        branches: [release]
+
+workflows:
+  publish-development-release:
+    tasks: [build-and-publish]
+  publish-stable-release:
+    tasks: [build-and-publish]
+
+tasks:
+  - name: build-and-publish
+    cubes:
+      - name: build-and-publish-github-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: wastegate711/DS3231_UWP_Library
+        image:
+          name: mcr.microsoft.com/dotnet/sdk:10.0
+          entrypoint: ""
+        script:
+          - |
+            set -euo pipefail
+
+            branch="${SOURCECRAFT_COMMIT_REF_NAME:?SourceCraft branch name is missing}"
+            commit_sha="${SOURCECRAFT_COMMIT_SHA:?SourceCraft commit SHA is missing}"
+
+            case "$branch" in
+              dev)
+                prerelease=true
+                ;;
+              release)
+                prerelease=false
+                ;;
+              *)
+                echo "Unsupported release branch: $branch" >&2
+                exit 1
+                ;;
+            esac
+
+            base_version="$(dotnet msbuild DS3231/DS3231.csproj -getProperty:Version -nologo)"
+            if [[ ! "$base_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Expected a stable x.y.z version in DS3231.csproj, got: $base_version" >&2
+              exit 1
+            fi
+
+            if [[ "$prerelease" == true ]]; then
+              package_version="${base_version}-dev.$(date -u +%Y%m%d%H%M%S)"
+            else
+              package_version="$base_version"
+            fi
+            release_tag="v${package_version}"
+
+            apt-get update -qq
+            apt-get install -y --no-install-recommends ca-certificates curl jq
+
+            dotnet build DS3231/DS3231.csproj --configuration Release
+            dotnet pack DS3231/DS3231.csproj --configuration Release --no-build --output artifacts "-p:PackageVersion=${package_version}"
+
+            package_name="West.RTC.DS3231.${package_version}.nupkg"
+            package_path="artifacts/${package_name}"
+            if [[ ! -s "$package_path" ]]; then
+              echo "Expected package was not created: $package_path" >&2
+              exit 1
+            fi
+
+            api_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases"
+            api_headers=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
+            response_file="$(mktemp)"
+            status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' "${api_url}/tags/${release_tag}" "${api_headers[@]}")"
+            case "$status" in
+              404)
+                ;;
+              200)
+                echo "GitHub Release ${release_tag} already exists; refusing to overwrite it." >&2
+                exit 1
+                ;;
+              *)
+                cat "$response_file" >&2
+                echo "Failed to check GitHub Release (HTTP ${status})." >&2
+                exit 1
+                ;;
+            esac
+
+            release_payload="$(jq -n \
+              --arg tag "$release_tag" \
+              --arg target "$commit_sha" \
+              --arg name "$release_tag" \
+              --arg body "${package_version} built from the ${branch} branch by SourceCraft." \
+              --argjson prerelease "$prerelease" \
+              '{tag_name: $tag, target_commitish: $target, name: $name, body: $body, draft: true, prerelease: $prerelease}')"
+            curl --fail-with-body --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+              -X POST "${api_url}" "${api_headers[@]}" \
+              -H "Content-Type: application/json" \
+              --data "$release_payload" \
+              --output "$response_file"
+            release_id="$(jq -er '.id' "$response_file")"
+
+            upload_response="$(mktemp)"
+            curl --fail-with-body --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+              -X POST "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?name=${package_name}" \
+              "${api_headers[@]}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@${package_path}" \
+              --output "$upload_response"
+            jq -e --arg name "$package_name" '.name == $name and .state == "uploaded"' "$upload_response" >/dev/null
+
+            curl --fail-with-body --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+              -X PATCH "${api_url}/${release_id}" "${api_headers[@]}" \
+              -H "Content-Type: application/json" \
+              --data '{"draft":false}' \
+              --output "$response_file"
+            jq -e --argjson prerelease "$prerelease" '.draft == false and .prerelease == $prerelease' "$response_file" >/dev/null
+
+            echo "Published GitHub $(if [[ "$prerelease" == true ]]; then echo 'Pre-release'; else echo 'Release'; fi) ${release_tag} with ${package_name}. No NuGet push is performed."

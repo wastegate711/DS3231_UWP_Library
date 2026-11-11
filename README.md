@@ -133,7 +133,9 @@ dotnet pack DS3231/DS3231.csproj --configuration Release --output artifacts
 
 Если вы хотите внести свои изменения, создайте ветку `feature/name`, затем создайте Pull Request в ветку `dev`. Для запрета слияния Pull Request с ошибкой сборки в настройках защиты ветки `dev` сделайте обязательной проверку GitHub Actions `Build`.
 
-- `dev` — основная ветка разработки. Каждый Pull Request и push проходят Release-сборку. Публикация запускается только после успешной сборки: push собирает prerelease-пакет вида `1.0.12-dev.<номер запуска GitHub Actions>`, создает GitHub Pre-release с соответствующим тегом `v...` и прикрепляет `.nupkg`; пакет также публикуется в NuGet.org.
-- `release` — ветка стабильных релизов. Перед публикацией увеличьте `<Version>` в `DS3231/DS3231.csproj`, чтобы версия и тег были уникальными. Каждый push собирает стабильный пакет, прикрепляет `.nupkg` к черновику GitHub Release и публикует его после успешной загрузки, затем публикует стабильную версию в NuGet.org.
+- `dev` — основная ветка разработки. Каждый Pull Request и push проходят Release-сборку. GitHub Actions после успешной сборки push публикует prerelease-пакет вида `1.0.12-dev.<номер запуска GitHub Actions>` в GitHub Pre-release и NuGet.org.
+- `release` — ветка стабильных релизов. Перед публикацией увеличьте `<Version>` в `DS3231/DS3231.csproj`, чтобы версия и тег были уникальными. GitHub Actions после успешной сборки push создает стабильный GitHub Release с приложенным `.nupkg` и публикует стабильную версию в NuGet.org.
 
-Для публикации используется настроенный NuGet Trusted Publishing.
+В зеркале SourceCraft настроен отдельный pipeline `.sourcecraft/ci.yaml`: он также собирает и упаковывает библиотеку при push в `dev` или `release`, прикладывает пакет к соответствующему GitHub Pre-release/Release, но ничего не отправляет в NuGet.org. Для публикации из SourceCraft добавьте секрет `GITHUB_TOKEN` в настройках зеркального репозитория; подробности — в [`.sourcecraft/README.md`](.sourcecraft/README.md).
+
+Для публикации из GitHub Actions используется настроенный NuGet Trusted Publishing.
