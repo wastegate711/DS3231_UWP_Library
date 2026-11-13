@@ -7,7 +7,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>West.RTC.DS3231</PackageId>
-    <Version>1.0.12</Version>
+    <Version>1.0.13</Version>
     <Authors>West</Authors>
     <Company>West</Company>
     <Description>Библиотека для работы с микросхемой часов реального времени DS3231 через I2C.</Description>
