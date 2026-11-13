@@ -7,19 +7,19 @@ namespace DS3231
     /// </summary>
     public sealed class Ds3231Reading
     {
-        internal Ds3231Reading(DateTime dateTime, DayOfWeek dayOfWeek, float temperatureCelsius, Ds3231Status status)
+        internal Ds3231Reading(DateTime dateTime, string weekDay, float temperatureCelsius, Ds3231Status status)
         {
             DateTime = dateTime;
-            DayOfWeek = dayOfWeek;
+            WeekDay = weekDay;
             TemperatureCelsius = temperatureCelsius;
             Status = status;
         }
 
-        /// <summary>Дата и время устройства в UTC.</summary>
+        /// <summary>Дата и время устройства без указания часового пояса.</summary>
         public DateTime DateTime { get; }
 
-        /// <summary>День недели из регистра DS3231.</summary>
-        public DayOfWeek DayOfWeek { get; }
+        /// <summary>День недели на русском языке.</summary>
+        public string WeekDay { get; }
 
         /// <summary>Температура в градусах Цельсия.</summary>
         public float TemperatureCelsius { get; }

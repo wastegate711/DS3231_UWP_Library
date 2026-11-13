@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace DS3231
 {
-    public class Ds3231 : IDs3231
+    public partial class Ds3231 : IDs3231
     {
         private const byte Alarm1InterruptEnable = 0x01;
         private const byte Alarm2InterruptEnable = 0x02;
@@ -21,6 +21,14 @@ namespace DS3231
         private const byte SquareWaveFrequencyMask = 0x18;
 
         private I2cDevice _ds3231;
+        private readonly AlarmController _alarmController;
+        private readonly OutputController _outputController;
+
+        public Ds3231()
+        {
+            _alarmController = new AlarmController(this);
+            _outputController = new OutputController(this);
+        }
 
         /// <inheritdoc />
         public void Initialization(int busId, int address)
@@ -57,25 +65,8 @@ namespace DS3231
         /// <inheritdoc />
         public string GetWeekDay()
         {
-            var dayOfWeek = ReadRegisters((byte)Registry.WeakDay, 1)[0] & 0x07;
-
-            switch (dayOfWeek)
-            {
-                case 1: return "Понедельник";
-                case 2: return "Вторник";
-                case 3: return "Среда";
-                case 4: return "Четверг";
-                case 5: return "Пятница";
-                case 6: return "Суббота";
-                case 7: return "Воскресенье";
-                default: return "Ошибка.";
-            }
-        }
-
-        /// <inheritdoc />
-        public DayOfWeek GetDayOfWeek()
-        {
-            return ConvertDayOfWeek(ReadRegisters((byte)Registry.WeakDay, 1)[0]);
+            var dayOfWeek = ReadRegisters((byte)Registry.WeakDay, 1)[0];
+            return TryConvertWeekDay(dayOfWeek, out var weekDay) ? weekDay : "Ошибка.";
         }
 
         /// <inheritdoc />
@@ -83,7 +74,7 @@ namespace DS3231
         {
             var status = ReadRegisters((byte)Registry.ControlStatus, 1)[0];
             var control = ReadRegisters((byte)Registry.Control, 1)[0];
-            return CreateStatus(status, control);
+            return _outputController.CreateStatus(status, control);
         }
 
         /// <inheritdoc />
@@ -94,17 +85,22 @@ namespace DS3231
             var status = ReadRegisters((byte)Registry.ControlStatus, 1)[0];
             var control = ReadRegisters((byte)Registry.Control, 1)[0];
 
+            if (!TryConvertWeekDay(dateTimeRegisters[3], out var weekDay))
+            {
+                throw new InvalidDataException("Регистр дня недели DS3231 содержит недопустимое значение.");
+            }
+
             return new Ds3231Reading(
                 ConvertDateTime(dateTimeRegisters),
-                ConvertDayOfWeek(dateTimeRegisters[3]),
+                weekDay,
                 ConvertTemperature(temperatureRegisters),
-                CreateStatus(status, control));
+                _outputController.CreateStatus(status, control));
         }
 
         /// <inheritdoc />
         public void SetDateTime()
         {
-            SetDateTime(DateTime.UtcNow);
+            SetDateTime(DateTime.Now);
         }
 
         /// <inheritdoc />
@@ -125,17 +121,13 @@ namespace DS3231
         /// <inheritdoc />
         public void SetDateTime(DateTime dateTime)
         {
-            var utcDateTime = dateTime.Kind == DateTimeKind.Local
-                ? dateTime.ToUniversalTime()
-                : DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
-
-            if (utcDateTime.Year < 2000 || utcDateTime.Year > 2199)
+            if (dateTime.Year < 2000 || dateTime.Year > 2199)
             {
                 throw new ArgumentOutOfRangeException(nameof(dateTime), "DS3231 поддерживает годы с 2000 по 2199.");
             }
 
-            var month = ConvertDecToBcd((byte)utcDateTime.Month);
-            if (utcDateTime.Year >= 2100)
+            var month = ConvertDecToBcd((byte)dateTime.Month);
+            if (dateTime.Year >= 2100)
             {
                 month |= 0x80;
             }
@@ -143,183 +135,16 @@ namespace DS3231
             var registers = new byte[]
             {
                 (byte)Registry.Seconds,
-                ConvertDecToBcd((byte)utcDateTime.Second),
-                ConvertDecToBcd((byte)utcDateTime.Minute),
-                ConvertDecToBcd((byte)utcDateTime.Hour),
-                ConvertDecToBcd((byte)GetDayOfWeekRegisterValue(utcDateTime.DayOfWeek)),
-                ConvertDecToBcd((byte)utcDateTime.Day),
+                ConvertDecToBcd((byte)dateTime.Second),
+                ConvertDecToBcd((byte)dateTime.Minute),
+                ConvertDecToBcd((byte)dateTime.Hour),
+                ConvertDecToBcd((byte)GetDayOfWeekRegisterValue(dateTime.DayOfWeek)),
+                ConvertDecToBcd((byte)dateTime.Day),
                 month,
-                ConvertDecToBcd((byte)(utcDateTime.Year % 100))
+                ConvertDecToBcd((byte)(dateTime.Year % 100))
             };
 
             GetDevice().Write(registers);
-        }
-
-        /// <inheritdoc />
-        public void SetAlarm1Daily(TimeSpan time)
-        {
-            ValidateAlarmTime(time);
-            SetAlarm1(
-                ConvertDecToBcd((byte)time.Seconds),
-                ConvertDecToBcd((byte)time.Minutes),
-                ConvertDecToBcd((byte)time.Hours),
-                AlarmMask);
-        }
-
-        /// <inheritdoc />
-        public void SetAlarm1Weekly(DayOfWeek dayOfWeek, TimeSpan time)
-        {
-            ValidateAlarmTime(time);
-            var day = GetDayOfWeekRegisterValue(dayOfWeek);
-            SetAlarm1(
-                ConvertDecToBcd((byte)time.Seconds),
-                ConvertDecToBcd((byte)time.Minutes),
-                ConvertDecToBcd((byte)time.Hours),
-                (byte)(AlarmDayOfWeekMode | day));
-        }
-
-        /// <inheritdoc />
-        public void SetAlarm1DayOfMonth(int day, TimeSpan time)
-        {
-            ValidateAlarmTime(time);
-            ValidateDayOfMonth(day);
-            SetAlarm1(
-                ConvertDecToBcd((byte)time.Seconds),
-                ConvertDecToBcd((byte)time.Minutes),
-                ConvertDecToBcd((byte)time.Hours),
-                ConvertDecToBcd((byte)day));
-        }
-
-        /// <inheritdoc />
-        public void SetAlarm2Daily(TimeSpan time)
-        {
-            ValidateAlarm2Time(time);
-            SetAlarm2(
-                ConvertDecToBcd((byte)time.Minutes),
-                ConvertDecToBcd((byte)time.Hours),
-                AlarmMask);
-        }
-
-        /// <inheritdoc />
-        public void SetAlarm2Weekly(DayOfWeek dayOfWeek, TimeSpan time)
-        {
-            ValidateAlarm2Time(time);
-            var day = GetDayOfWeekRegisterValue(dayOfWeek);
-            SetAlarm2(
-                ConvertDecToBcd((byte)time.Minutes),
-                ConvertDecToBcd((byte)time.Hours),
-                (byte)(AlarmDayOfWeekMode | day));
-        }
-
-        /// <inheritdoc />
-        public void SetAlarm2DayOfMonth(int day, TimeSpan time)
-        {
-            ValidateAlarm2Time(time);
-            ValidateDayOfMonth(day);
-            SetAlarm2(
-                ConvertDecToBcd((byte)time.Minutes),
-                ConvertDecToBcd((byte)time.Hours),
-                ConvertDecToBcd((byte)day));
-        }
-
-        /// <inheritdoc />
-        public bool IsAlarm1Triggered()
-        {
-            return (ReadRegisters((byte)Registry.ControlStatus, 1)[0] & Alarm1Flag) != 0;
-        }
-
-        /// <inheritdoc />
-        public bool IsAlarm2Triggered()
-        {
-            return (ReadRegisters((byte)Registry.ControlStatus, 1)[0] & Alarm2Flag) != 0;
-        }
-
-        /// <inheritdoc />
-        public void ClearAlarm1Flag()
-        {
-            ClearAlarmFlag(Alarm1Flag);
-        }
-
-        /// <inheritdoc />
-        public void ClearAlarm2Flag()
-        {
-            ClearAlarmFlag(Alarm2Flag);
-        }
-
-        /// <inheritdoc />
-        public void DisableAlarm1()
-        {
-            UpdateControlRegister(Alarm1InterruptEnable, false);
-            ClearAlarm1Flag();
-        }
-
-        /// <inheritdoc />
-        public void DisableAlarm2()
-        {
-            UpdateControlRegister(Alarm2InterruptEnable, false);
-            ClearAlarm2Flag();
-        }
-
-        /// <inheritdoc />
-        public bool IsOscillatorStopped()
-        {
-            return (ReadRegisters((byte)Registry.ControlStatus, 1)[0] & OscillatorStoppedFlag) != 0;
-        }
-
-        /// <inheritdoc />
-        public void ClearOscillatorStoppedFlag()
-        {
-            ClearStatusFlag(OscillatorStoppedFlag);
-        }
-
-        /// <inheritdoc />
-        public void SetSquareWaveOutput(SquareWaveFrequency frequency)
-        {
-            if (!Enum.IsDefined(typeof(SquareWaveFrequency), frequency))
-            {
-                throw new ArgumentOutOfRangeException(nameof(frequency));
-            }
-
-            var control = ReadRegisters((byte)Registry.Control, 1)[0];
-            control &= unchecked((byte)~(InterruptControl | SquareWaveFrequencyMask));
-            control |= (byte)((byte)frequency << 3);
-            WriteRegisters((byte)Registry.Control, control);
-        }
-
-        /// <inheritdoc />
-        public void DisableSquareWaveOutput()
-        {
-            UpdateControlRegister(InterruptControl, true);
-        }
-
-        /// <inheritdoc />
-        public void Enable32kHzOutput()
-        {
-            UpdateStatusRegister(Enable32kHzOutputFlag, true);
-        }
-
-        /// <inheritdoc />
-        public void Disable32kHzOutput()
-        {
-            UpdateStatusRegister(Enable32kHzOutputFlag, false);
-        }
-
-        /// <inheritdoc />
-        public bool Is32kHzOutputEnabled()
-        {
-            return (ReadRegisters((byte)Registry.ControlStatus, 1)[0] & Enable32kHzOutputFlag) != 0;
-        }
-
-        /// <inheritdoc />
-        public sbyte GetAgingOffset()
-        {
-            return (sbyte)ReadRegisters((byte)Registry.AgingOffset, 1)[0];
-        }
-
-        /// <inheritdoc />
-        public void SetAgingOffset(sbyte offset)
-        {
-            WriteRegisters((byte)Registry.AgingOffset, unchecked((byte)offset));
         }
 
         /// <inheritdoc />
@@ -333,75 +158,6 @@ namespace DS3231
         public void Dispose()
         {
             Close();
-        }
-
-        private void SetAlarm1(byte second, byte minute, byte hour, byte dayDate)
-        {
-            WriteRegisters((byte)Registry.Alarm1Seconds, second, minute, hour, dayDate);
-            ClearAlarm1Flag();
-            UpdateControlRegister(Alarm1InterruptEnable, true);
-        }
-
-        private void SetAlarm2(byte minute, byte hour, byte dayDate)
-        {
-            WriteRegisters((byte)Registry.Alarm2Minutes, minute, hour, dayDate);
-            ClearAlarm2Flag();
-            UpdateControlRegister(Alarm2InterruptEnable, true);
-        }
-
-        private void ClearAlarmFlag(byte flag)
-        {
-            var status = ReadRegisters((byte)Registry.ControlStatus, 1)[0];
-            WriteRegisters((byte)Registry.ControlStatus, (byte)(status & ~flag));
-        }
-
-        private void UpdateControlRegister(byte interruptEnable, bool enabled)
-        {
-            var control = ReadRegisters((byte)Registry.Control, 1)[0];
-            control |= InterruptControl;
-            if (enabled)
-            {
-                control |= interruptEnable;
-            }
-            else
-            {
-                control &= (byte)~interruptEnable;
-            }
-
-            WriteRegisters((byte)Registry.Control, control);
-        }
-
-        private void UpdateStatusRegister(byte mask, bool enabled)
-        {
-            var status = ReadRegisters((byte)Registry.ControlStatus, 1)[0];
-            if (enabled)
-            {
-                status |= mask;
-            }
-            else
-            {
-                status &= (byte)~mask;
-            }
-
-            WriteRegisters((byte)Registry.ControlStatus, status);
-        }
-
-        private void ClearStatusFlag(byte flag)
-        {
-            var status = ReadRegisters((byte)Registry.ControlStatus, 1)[0];
-            WriteRegisters((byte)Registry.ControlStatus, (byte)(status & ~flag));
-        }
-
-        private static Ds3231Status CreateStatus(byte status, byte control)
-        {
-            return new Ds3231Status(
-                (status & OscillatorStoppedFlag) != 0,
-                (status & Alarm1Flag) != 0,
-                (status & Alarm2Flag) != 0,
-                (status & Enable32kHzOutputFlag) != 0,
-                (status & BusyFlag) != 0,
-                (control & InterruptControl) == 0,
-                (SquareWaveFrequency)((control & SquareWaveFrequencyMask) >> 3));
         }
 
         private static DateTime ConvertDateTime(byte[] registers)
@@ -419,21 +175,21 @@ namespace DS3231
                 year += 100;
             }
 
-            return new DateTime(year, month, day, hour, minute, second, DateTimeKind.Utc);
+            return new DateTime(year, month, day, hour, minute, second);
         }
 
-        private static DayOfWeek ConvertDayOfWeek(byte data)
+        private static bool TryConvertWeekDay(byte data, out string weekDay)
         {
             switch (data & 0x07)
             {
-                case 1: return DayOfWeek.Monday;
-                case 2: return DayOfWeek.Tuesday;
-                case 3: return DayOfWeek.Wednesday;
-                case 4: return DayOfWeek.Thursday;
-                case 5: return DayOfWeek.Friday;
-                case 6: return DayOfWeek.Saturday;
-                case 7: return DayOfWeek.Sunday;
-                default: throw new InvalidDataException("Регистр дня недели DS3231 содержит недопустимое значение.");
+                case 1: weekDay = "Понедельник"; return true;
+                case 2: weekDay = "Вторник"; return true;
+                case 3: weekDay = "Среда"; return true;
+                case 4: weekDay = "Четверг"; return true;
+                case 5: weekDay = "Пятница"; return true;
+                case 6: weekDay = "Суббота"; return true;
+                case 7: weekDay = "Воскресенье"; return true;
+                default: weekDay = null; return false;
             }
         }
 
@@ -442,31 +198,6 @@ namespace DS3231
             var wholeDegrees = (sbyte)temperature[0];
             var fractionalDegrees = (temperature[1] >> 6) * 0.25f;
             return wholeDegrees + fractionalDegrees;
-        }
-
-        private static void ValidateAlarmTime(TimeSpan time)
-        {
-            if (time < TimeSpan.Zero || time >= TimeSpan.FromDays(1) || time.Ticks % TimeSpan.TicksPerSecond != 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(time), "Время будильника должно быть от 00:00:00 до 23:59:59 с точностью до секунды.");
-            }
-        }
-
-        private static void ValidateAlarm2Time(TimeSpan time)
-        {
-            ValidateAlarmTime(time);
-            if (time.Seconds != 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(time), "Будильник 2 настраивается с точностью до минуты.");
-            }
-        }
-
-        private static void ValidateDayOfMonth(int day)
-        {
-            if (day < 1 || day > 31)
-            {
-                throw new ArgumentOutOfRangeException(nameof(day), "День месяца должен быть от 1 до 31.");
-            }
         }
 
         private I2cDevice GetDevice()
@@ -488,6 +219,22 @@ namespace DS3231
             data[0] = register;
             Array.Copy(values, 0, data, 1, values.Length);
             GetDevice().Write(data);
+        }
+
+        private void UpdateControlRegister(byte interruptEnable, bool enabled)
+        {
+            var control = ReadRegisters((byte)Registry.Control, 1)[0];
+            control |= InterruptControl;
+            if (enabled)
+            {
+                control |= interruptEnable;
+            }
+            else
+            {
+                control &= (byte)~interruptEnable;
+            }
+
+            WriteRegisters((byte)Registry.Control, control);
         }
 
         private static int ConvertHour(byte data)
