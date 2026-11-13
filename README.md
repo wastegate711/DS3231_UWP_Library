@@ -19,20 +19,20 @@ dotnet add package West.RTC.DS3231
 ```csharp
 using DS3231;
 
-var rtc = new Ds3231();
-await rtc.InitializeAsync(busId: 1, address: 0x68);
-
-try
+using (var rtc = new Ds3231())
 {
-    DateTime now = rtc.GetDateTime();
+    await rtc.InitializeAsync(busId: 1, address: 0x68);
+
+    DateTime nowUtc = rtc.GetDateTime();
     string weekday = rtc.GetWeekDay();
     float temperatureCelsius = rtc.GetTemperature();
+    Ds3231Reading reading = rtc.GetReading();
 
-    rtc.SetDateTime(new DateTime(2026, 11, 9, 12, 30, 0));
-}
-finally
-{
-    rtc.Close();
+    if (reading.Status.OscillatorStopped)
+    {
+        rtc.SetDateTime(DateTime.UtcNow);
+        rtc.ClearOscillatorStoppedFlag();
+    }
 }
 ```
 
@@ -51,16 +51,21 @@ finally
 
 ### Чтение
 
-- `DateTime GetDateTime()` — читает секунды, минуты, часы, дату, месяц и год DS3231 и возвращает `DateTime`.
+- `DateTime GetDateTime()` — читает часы и возвращает `DateTime` с `Kind == Utc`.
 - `string GetWeekDay()` — читает регистр дня недели. Возвращаемые значения: `Понедельник`, `Вторник`, `Среда`, `Четверг`, `Пятница`, `Суббота`, `Воскресенье`; при неизвестном значении возвращается `Ошибка.`.
+- `DayOfWeek GetDayOfWeek()` — возвращает установленное в регистре DS3231 значение `DayOfWeek`; неизвестное значение регистра приводит к `InvalidDataException`.
 - `float GetTemperature()` — читает температурные регистры и возвращает значение в градусах Цельсия с шагом 0,25 °C.
+- `Ds3231Status GetStatus()` — читает флаги генератора и будильников, состояние преобразования температуры и настройки выходов.
+- `Ds3231Reading GetReading()` — совместно считывает дату/время UTC, день недели, температуру и `Ds3231Status`.
 - `string GetDeviceId()` — возвращает идентификатор в виде номера I²C-шины и адреса устройства.
 
 ### Установка даты и времени
 
-- `void SetDateTime()` — записывает системные локальные дату и время (`DateTime.Now`) в DS3231.
-- `void SetDateTime(DateTime dateTime)` — записывает явно переданные дату и время без преобразования часового пояса. Поддерживаются годы с 2000 по 2199.
-- `void SetDateTime(string newDateTime)` — разбирает дату в точном формате `dd.MM.yyyy HH:mm:ss`; неверный формат приводит к `FormatException`.
+- `void SetDateTime()` — записывает текущие дату и время UTC (`DateTime.UtcNow`) в DS3231.
+- `void SetDateTime(DateTime dateTime)` — `DateTimeKind.Local` преобразуется в UTC; `Utc` используется без изменения, а `Unspecified` явно трактуется как UTC. Поддерживаются годы с 2000 по 2199 после преобразования.
+- `void SetDateTime(string newDateTime)` — разбирает дату в точном формате `dd.MM.yyyy HH:mm:ss` и трактует результат как UTC; неверный формат приводит к `FormatException`.
+
+DS3231 не хранит информацию о часовом поясе: библиотека представляет его часы в UTC. Время будильников также задавайте в UTC. День недели для будильника устанавливается по той же системе регистра DS3231: понедельник — 1, воскресенье — 7.
 
 Ошибки шины передаются вызывающему коду исключениями `System.Device.I2c`; при успешной записи методы завершаются без результата.
 
@@ -89,9 +94,30 @@ if (rtc.IsAlarm1Triggered())
 
 Вызов настройки включает соответствующий будильник и переводит вывод `INT/SQW` в режим прерывания. При совпадении времени DS3231 **не вызывает обработчик приложения сам**: он устанавливает флаг будильника и тянет общий вывод `INT/SQW` в низкий уровень (активный низкий, open-drain). Подтяните вывод к питанию согласно схеме устройства и подключите его к GPIO микроконтроллера/компьютера. Чтобы получить программное GPIO-прерывание, приложение должно отдельно настроить обработчик на спад сигнала. Пока флаг не сброшен через `ClearAlarm1Flag()` или `ClearAlarm2Flag()`, линия остается низкой; при использовании обоих будильников очистите флаги обоих сработавших будильников.
 
+### Флаги генератора, выходы и калибровка
+
+```csharp
+if (rtc.IsOscillatorStopped())
+{
+    rtc.SetDateTime(DateTime.UtcNow);
+    rtc.ClearOscillatorStoppedFlag();
+}
+
+rtc.SetSquareWaveOutput(SquareWaveFrequency.Hz1024);
+rtc.Enable32kHzOutput();
+sbyte agingOffset = rtc.GetAgingOffset();
+```
+
+- `IsOscillatorStopped()` / `ClearOscillatorStoppedFlag()` — проверяют и сбрасывают OSF. Сброс OSF сам по себе не исправляет время: если флаг установлен, установите достоверное время перед его очисткой.
+- `SetSquareWaveOutput(SquareWaveFrequency)` — настраивает INT/SQW на `Hz1`, `Hz1024`, `Hz4096` или `Hz8192`. Переводит общий вывод INT/SQW из режима будильников в режим генератора.
+- `DisableSquareWaveOutput()` — переводит INT/SQW обратно в режим прерываний; разрешения будильников сохраняются.
+- `Enable32kHzOutput()`, `Disable32kHzOutput()` и `Is32kHzOutputEnabled()` — управляют отдельным выходом 32 кГц.
+- `GetAgingOffset()` / `SetAgingOffset(sbyte)` — читают и записывают знаковый регистр aging offset в диапазоне от -128 до 127. Это аппаратная тонкая коррекция частоты; изменяйте значение постепенно и проверяйте результат измерением.
+
 ### Закрытие
 
-- `void Close()` — освобождает открытый `I2cDevice`. Вызывайте после завершения работы; метод допускает повторный вызов.
+- `void Close()` — освобождает открытый `I2cDevice`; повторный вызов безопасен.
+- `Ds3231` реализует `IDisposable`, поэтому экземпляр можно использовать в `using`.
 
 ## Перечисление `Registry`
 
