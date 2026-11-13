@@ -23,14 +23,14 @@ using (var rtc = new Ds3231())
 {
     await rtc.InitializeAsync(busId: 1, address: 0x68);
 
-    DateTime nowUtc = rtc.GetDateTime();
+    DateTime now = rtc.GetDateTime();
     string weekday = rtc.GetWeekDay();
     float temperatureCelsius = rtc.GetTemperature();
     Ds3231Reading reading = rtc.GetReading();
 
     if (reading.Status.OscillatorStopped)
     {
-        rtc.SetDateTime(DateTime.UtcNow);
+        rtc.SetDateTime(DateTime.Now);
         rtc.ClearOscillatorStoppedFlag();
     }
 }
@@ -51,21 +51,20 @@ using (var rtc = new Ds3231())
 
 ### Чтение
 
-- `DateTime GetDateTime()` — читает часы и возвращает `DateTime` с `Kind == Utc`.
-- `string GetWeekDay()` — читает регистр дня недели. Возвращаемые значения: `Понедельник`, `Вторник`, `Среда`, `Четверг`, `Пятница`, `Суббота`, `Воскресенье`; при неизвестном значении возвращается `Ошибка.`.
-- `DayOfWeek GetDayOfWeek()` — возвращает установленное в регистре DS3231 значение `DayOfWeek`; неизвестное значение регистра приводит к `InvalidDataException`.
+- `DateTime GetDateTime()` — читает часы; результат имеет `Kind == Unspecified`, поскольку DS3231 не хранит часовой пояс.
+- `string GetWeekDay()` — читает регистр дня недели и возвращает русское название: `Понедельник`, `Вторник`, `Среда`, `Четверг`, `Пятница`, `Суббота` или `Воскресенье`; при неизвестном значении возвращается `Ошибка.`.
 - `float GetTemperature()` — читает температурные регистры и возвращает значение в градусах Цельсия с шагом 0,25 °C.
 - `Ds3231Status GetStatus()` — читает флаги генератора и будильников, состояние преобразования температуры и настройки выходов.
-- `Ds3231Reading GetReading()` — совместно считывает дату/время UTC, день недели, температуру и `Ds3231Status`.
+- `Ds3231Reading GetReading()` — совместно считывает дату/время без преобразования часового пояса, день недели на русском языке, температуру и `Ds3231Status`.
 - `string GetDeviceId()` — возвращает идентификатор в виде номера I²C-шины и адреса устройства.
 
 ### Установка даты и времени
 
-- `void SetDateTime()` — записывает текущие дату и время UTC (`DateTime.UtcNow`) в DS3231.
-- `void SetDateTime(DateTime dateTime)` — `DateTimeKind.Local` преобразуется в UTC; `Utc` используется без изменения, а `Unspecified` явно трактуется как UTC. Поддерживаются годы с 2000 по 2199 после преобразования.
-- `void SetDateTime(string newDateTime)` — разбирает дату в точном формате `dd.MM.yyyy HH:mm:ss` и трактует результат как UTC; неверный формат приводит к `FormatException`.
+- `void SetDateTime()` — записывает текущие локальные дату и время (`DateTime.Now`) в DS3231.
+- `void SetDateTime(DateTime dateTime)` — записывает компоненты переданного значения без преобразования часового пояса. Поддерживаются годы с 2000 по 2199.
+- `void SetDateTime(string newDateTime)` — разбирает дату в точном формате `dd.MM.yyyy HH:mm:ss` без преобразования часового пояса; неверный формат приводит к `FormatException`.
 
-DS3231 не хранит информацию о часовом поясе: библиотека представляет его часы в UTC. Время будильников также задавайте в UTC. День недели для будильника устанавливается по той же системе регистра DS3231: понедельник — 1, воскресенье — 7.
+DS3231 не хранит информацию о часовом поясе: библиотека записывает и считывает значения как локальное время устройства. Время будильников также задавайте по локальному времени часов. День недели для будильника устанавливается по той же системе регистра DS3231: понедельник — 1, воскресенье — 7.
 
 Ошибки шины передаются вызывающему коду исключениями `System.Device.I2c`; при успешной записи методы завершаются без результата.
 
@@ -99,7 +98,7 @@ if (rtc.IsAlarm1Triggered())
 ```csharp
 if (rtc.IsOscillatorStopped())
 {
-    rtc.SetDateTime(DateTime.UtcNow);
+    rtc.SetDateTime(DateTime.Now);
     rtc.ClearOscillatorStoppedFlag();
 }
 
