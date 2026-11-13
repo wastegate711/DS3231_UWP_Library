@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace DS3231
 {
-    public interface IDs3231
+    public interface IDs3231 : IDisposable
     {
         /// <summary>
         /// Открывает DS3231 на указанной шине I2C по заданному адресу устройства.
@@ -35,32 +35,42 @@ namespace DS3231
         string GetDeviceId();
 
         /// <summary>
-        /// Устанавливает в часах системные местные дату и время.
+        /// Устанавливает в часах текущие локальные дату и время.
         /// </summary>
         void SetDateTime();
 
         /// <summary>
-        /// Устанавливает дату и время в формате dd.MM.yyyy HH:mm:ss.
+        /// Устанавливает дату и время в формате dd.MM.yyyy HH:mm:ss без преобразования часового пояса.
         /// </summary>
         void SetDateTime(string newDateTime);
 
         /// <summary>
-        /// Устанавливает в часах указанную дату и время.
+        /// Записывает компоненты указанной даты и времени без преобразования часового пояса.
         /// </summary>
         void SetDateTime(DateTime dateTime);
 
         /// <summary>
-        /// Считывает дату и время из часов реального времени.
+        /// Считывает дату и время часов без указания часового пояса.
         /// </summary>
         DateTime GetDateTime();
 
         /// <summary>
-        /// Считывает установленный в часах день недели.
+        /// Считывает установленный в часах день недели и возвращает его русское название.
         /// </summary>
         string GetWeekDay();
 
         /// <summary>
-        /// Настраивает будильник 1 на ежедневное срабатывание в указанное время, включая секунды.
+        /// Считывает время, день недели на русском языке, температуру и флаги/состояние устройства.
+        /// </summary>
+        Ds3231Reading GetReading();
+
+        /// <summary>
+        /// Считывает флаги состояния и настройки выходов DS3231.
+        /// </summary>
+        Ds3231Status GetStatus();
+
+        /// <summary>
+        /// Настраивает будильник 1 на ежедневное срабатывание в указанное локальное время, включая секунды.
         /// </summary>
         void SetAlarm1Daily(TimeSpan time);
 
@@ -118,5 +128,40 @@ namespace DS3231
         /// Отключает прерывание от будильника 2 и сбрасывает его флаг срабатывания.
         /// </summary>
         void DisableAlarm2();
+
+        /// <summary>
+        /// Возвращает true, если генератор остановился и время может быть недостоверным.
+        /// </summary>
+        bool IsOscillatorStopped();
+
+        /// <summary>
+        /// Сбрасывает флаг остановки генератора; устанавливайте время заново, если оно недостоверно.
+        /// </summary>
+        void ClearOscillatorStoppedFlag();
+
+        /// <summary>
+        /// Включает сигнал выбранной частоты на выводе INT/SQW, отключая режим прерываний этого вывода.
+        /// </summary>
+        void SetSquareWaveOutput(SquareWaveFrequency frequency);
+
+        /// <summary>
+        /// Выключает режим генератора на INT/SQW и переводит вывод в режим прерываний.
+        /// </summary>
+        void DisableSquareWaveOutput();
+
+        /// <summary>Включает выход 32 кГц.</summary>
+        void Enable32kHzOutput();
+
+        /// <summary>Выключает выход 32 кГц.</summary>
+        void Disable32kHzOutput();
+
+        /// <summary>Возвращает true, если выход 32 кГц включен.</summary>
+        bool Is32kHzOutputEnabled();
+
+        /// <summary>Считывает signed aging offset для коррекции частоты генератора.</summary>
+        sbyte GetAgingOffset();
+
+        /// <summary>Устанавливает signed aging offset в диапазоне от -128 до 127.</summary>
+        void SetAgingOffset(sbyte offset);
     }
 }

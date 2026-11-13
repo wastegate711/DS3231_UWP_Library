@@ -19,20 +19,20 @@ dotnet add package West.RTC.DS3231
 ```csharp
 using DS3231;
 
-var rtc = new Ds3231();
-await rtc.InitializeAsync(busId: 1, address: 0x68);
-
-try
+using (var rtc = new Ds3231())
 {
+    await rtc.InitializeAsync(busId: 1, address: 0x68);
+
     DateTime now = rtc.GetDateTime();
     string weekday = rtc.GetWeekDay();
     float temperatureCelsius = rtc.GetTemperature();
+    Ds3231Reading reading = rtc.GetReading();
 
-    rtc.SetDateTime(new DateTime(2026, 11, 9, 12, 30, 0));
-}
-finally
-{
-    rtc.Close();
+    if (reading.Status.OscillatorStopped)
+    {
+        rtc.SetDateTime(DateTime.Now);
+        rtc.ClearOscillatorStoppedFlag();
+    }
 }
 ```
 
@@ -51,16 +51,20 @@ finally
 
 ### Чтение
 
-- `DateTime GetDateTime()` — читает секунды, минуты, часы, дату, месяц и год DS3231 и возвращает `DateTime`.
-- `string GetWeekDay()` — читает регистр дня недели. Возвращаемые значения: `Понедельник`, `Вторник`, `Среда`, `Четверг`, `Пятница`, `Суббота`, `Воскресенье`; при неизвестном значении возвращается `Ошибка.`.
+- `DateTime GetDateTime()` — читает часы; результат имеет `Kind == Unspecified`, поскольку DS3231 не хранит часовой пояс.
+- `string GetWeekDay()` — читает регистр дня недели и возвращает русское название: `Понедельник`, `Вторник`, `Среда`, `Четверг`, `Пятница`, `Суббота` или `Воскресенье`; при неизвестном значении возвращается `Ошибка.`.
 - `float GetTemperature()` — читает температурные регистры и возвращает значение в градусах Цельсия с шагом 0,25 °C.
+- `Ds3231Status GetStatus()` — читает флаги генератора и будильников, состояние преобразования температуры и настройки выходов.
+- `Ds3231Reading GetReading()` — совместно считывает дату/время без преобразования часового пояса, день недели на русском языке, температуру и `Ds3231Status`.
 - `string GetDeviceId()` — возвращает идентификатор в виде номера I²C-шины и адреса устройства.
 
 ### Установка даты и времени
 
-- `void SetDateTime()` — записывает системные локальные дату и время (`DateTime.Now`) в DS3231.
-- `void SetDateTime(DateTime dateTime)` — записывает явно переданные дату и время без преобразования часового пояса. Поддерживаются годы с 2000 по 2199.
-- `void SetDateTime(string newDateTime)` — разбирает дату в точном формате `dd.MM.yyyy HH:mm:ss`; неверный формат приводит к `FormatException`.
+- `void SetDateTime()` — записывает текущие локальные дату и время (`DateTime.Now`) в DS3231.
+- `void SetDateTime(DateTime dateTime)` — записывает компоненты переданного значения без преобразования часового пояса. Поддерживаются годы с 2000 по 2199.
+- `void SetDateTime(string newDateTime)` — разбирает дату в точном формате `dd.MM.yyyy HH:mm:ss` без преобразования часового пояса; неверный формат приводит к `FormatException`.
+
+DS3231 не хранит информацию о часовом поясе: библиотека записывает и считывает значения как локальное время устройства. Время будильников также задавайте по локальному времени часов. День недели для будильника устанавливается по той же системе регистра DS3231: понедельник — 1, воскресенье — 7.
 
 Ошибки шины передаются вызывающему коду исключениями `System.Device.I2c`; при успешной записи методы завершаются без результата.
 
@@ -89,9 +93,30 @@ if (rtc.IsAlarm1Triggered())
 
 Вызов настройки включает соответствующий будильник и переводит вывод `INT/SQW` в режим прерывания. При совпадении времени DS3231 **не вызывает обработчик приложения сам**: он устанавливает флаг будильника и тянет общий вывод `INT/SQW` в низкий уровень (активный низкий, open-drain). Подтяните вывод к питанию согласно схеме устройства и подключите его к GPIO микроконтроллера/компьютера. Чтобы получить программное GPIO-прерывание, приложение должно отдельно настроить обработчик на спад сигнала. Пока флаг не сброшен через `ClearAlarm1Flag()` или `ClearAlarm2Flag()`, линия остается низкой; при использовании обоих будильников очистите флаги обоих сработавших будильников.
 
+### Флаги генератора, выходы и калибровка
+
+```csharp
+if (rtc.IsOscillatorStopped())
+{
+    rtc.SetDateTime(DateTime.Now);
+    rtc.ClearOscillatorStoppedFlag();
+}
+
+rtc.SetSquareWaveOutput(SquareWaveFrequency.Hz1024);
+rtc.Enable32kHzOutput();
+sbyte agingOffset = rtc.GetAgingOffset();
+```
+
+- `IsOscillatorStopped()` / `ClearOscillatorStoppedFlag()` — проверяют и сбрасывают OSF. Сброс OSF сам по себе не исправляет время: если флаг установлен, установите достоверное время перед его очисткой.
+- `SetSquareWaveOutput(SquareWaveFrequency)` — настраивает INT/SQW на `Hz1`, `Hz1024`, `Hz4096` или `Hz8192`. Переводит общий вывод INT/SQW из режима будильников в режим генератора.
+- `DisableSquareWaveOutput()` — переводит INT/SQW обратно в режим прерываний; разрешения будильников сохраняются.
+- `Enable32kHzOutput()`, `Disable32kHzOutput()` и `Is32kHzOutputEnabled()` — управляют отдельным выходом 32 кГц.
+- `GetAgingOffset()` / `SetAgingOffset(sbyte)` — читают и записывают знаковый регистр aging offset в диапазоне от -128 до 127. Это аппаратная тонкая коррекция частоты; изменяйте значение постепенно и проверяйте результат измерением.
+
 ### Закрытие
 
-- `void Close()` — освобождает открытый `I2cDevice`. Вызывайте после завершения работы; метод допускает повторный вызов.
+- `void Close()` — освобождает открытый `I2cDevice`; повторный вызов безопасен.
+- `Ds3231` реализует `IDisposable`, поэтому экземпляр можно использовать в `using`.
 
 ## Перечисление `Registry`
 
@@ -133,7 +158,9 @@ dotnet pack DS3231/DS3231.csproj --configuration Release --output artifacts
 
 Если вы хотите внести свои изменения, создайте ветку `feature/name`, затем создайте Pull Request в ветку `dev`. Для запрета слияния Pull Request с ошибкой сборки в настройках защиты ветки `dev` сделайте обязательной проверку GitHub Actions `Build`.
 
-- `dev` — основная ветка разработки. Каждый Pull Request и push проходят Release-сборку. Публикация запускается только после успешной сборки: push собирает prerelease-пакет вида `1.0.12-dev.<номер запуска GitHub Actions>`, создает GitHub Pre-release с соответствующим тегом `v...` и прикрепляет `.nupkg`; пакет также публикуется в NuGet.org.
-- `release` — ветка стабильных релизов. Перед публикацией увеличьте `<Version>` в `DS3231/DS3231.csproj`, чтобы версия и тег были уникальными. Каждый push собирает стабильный пакет, прикрепляет `.nupkg` к черновику GitHub Release и публикует его после успешной загрузки, затем публикует стабильную версию в NuGet.org.
+- `dev` — основная ветка разработки. Каждый Pull Request и push проходят Release-сборку. GitHub Actions после успешной сборки push публикует prerelease-пакет вида `1.0.12-dev.<номер запуска GitHub Actions>` в GitHub Pre-release и NuGet.org.
+- `release` — ветка стабильных релизов. Перед публикацией увеличьте `<Version>` в `DS3231/DS3231.csproj`, чтобы версия и тег были уникальными. GitHub Actions после успешной сборки push создает стабильный GitHub Release с приложенным `.nupkg` и публикует стабильную версию в NuGet.org.
 
-Для публикации используется настроенный NuGet Trusted Publishing.
+В зеркале SourceCraft настроен отдельный pipeline `.sourcecraft/ci.yaml`: при push в `dev` или `release` он собирает и упаковывает библиотеку, затем публикует пакет в Releases самого зеркального репозитория SourceCraft. Этот pipeline не меняет GitHub Releases workflow и ничего не отправляет в NuGet.org. Для публикации добавьте секрет `SOURCECRAFT_TOKEN` в настройках зеркального репозитория; подробности — в [`.sourcecraft/README.md`](.sourcecraft/README.md).
+
+Для публикации из GitHub Actions используется настроенный NuGet Trusted Publishing.
